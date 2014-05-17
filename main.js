@@ -26,8 +26,34 @@ define = function() {
 	game.BONUS_COMBO = 0.25
 }
 
+DropManager = enchant.Class.create({
+	initialize: function() {
+		this.drops = new Array();
+		var number_of_drops = game.STAGE_ROWS * game.STAGE_LINES;
+		for (var i=0; i<number_of_drops; i++) {
+			this.drops[i] = new Drop();
+		}
+	}
+	, addStage: function() {
+		this.stage = new Group(game.STAGE_W, game.STAGE_H);
+		this.stage.x = 10;
+		this.stage.y = 60;
+		game.currentScene.addChild(this.stage);
+	}
+	, setDrops: function() {
+		for (var i=0; i<this.drops.length; i++) {
+			var drop = this.drops[i];
+			var row  = Math.floor(i % game.STAGE_ROWS);
+			var line = Math.floor(i / game.STAGE_ROWS);
+			drop.setDrop(this.stage, row, line);
+		}
+	}
+});
+
 Drop = enchant.Class.create(enchant.Sprite, {
-	initialize: function(width, height) {
+	initialize: function() {
+		var width  = game.DROP_SIZE;
+		var height = game.DROP_SIZE;
 		Sprite.call(this, width, height);
 		this.image = game.assets["images/icon1.png"];
 		this.color = this.getRandomColor();
@@ -63,7 +89,7 @@ Drop = enchant.Class.create(enchant.Sprite, {
 		return false;
 	}
 	, setDrop: function(parent, row, line, color) {
-		this.x = row  * game.DROP_SIZE;
+		this.x = row * game.DROP_SIZE;
 		this.y = line * game.DROP_SIZE;
 		parent.addChild(this);
 	}
@@ -88,10 +114,10 @@ MainScene = enchant.Class.create(enchant.Scene, {
 		
 		// Main
 		console.log("main game");
-		// Drop
-		var drop01 = new Drop(game.DROP_SIZE, game.DROP_SIZE);
-		this.addChild(drop01);
-		drop01.move(100, 100, "slide");
+		// DropManager
+		game.dropManager = new DropManager();
+		game.dropManager.addStage();
+		game.dropManager.setDrops();
 
 	}
 });

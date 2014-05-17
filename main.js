@@ -30,14 +30,14 @@ Drop = enchant.Class.create(enchant.Sprite, {
 	initialize: function(width, height) {
 		Sprite.call(this, width, height);
 		this.image = game.assets["images/icon1.png"];
-		this.color = this.getColor();
+		this.color = this.getRandomColor();
 		this.frame = this.getFrame();
 		this.row  = 0;
 		this.line = 0;
 		this.matched = false;
 		this.comboChecked = false;
 	}
-	, getColor: function() {
+	, getRandomColor: function() {
 		var max  = game.DROP_COLOR_SIZE;
 		var list = game.DROP_COLOR_ASSOSIATE;
 		var rand = Math.floor(Math.random() * max);
@@ -47,14 +47,18 @@ Drop = enchant.Class.create(enchant.Sprite, {
 		}
 		return false;
 	}
+	, getColor: function() {
+		if (this.color) {
+			return this.color;
+		}
+		return false;
+	}
 	, getFrame: function() {
 		var list = game.DROP_COLOR_FRAME;
-		var color = this.color;
-		if (color) {
-			var frame = list[color];
-			if (frame) {
-				return frame;
-			}
+		var color = this.getColor();
+		var frame = list[color];
+		if (frame) {
+			return frame;
 		}
 		return false;
 	}

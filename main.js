@@ -66,6 +66,10 @@ Drop = enchant.Class.create(enchant.Sprite, {
 		this.matched = false;
 		this.comboChecked = false;
 	}
+	, onenterframe: function(e) {
+		this.image = game.assets["images/icon1.png"];
+		this.frame = this.getFrame();
+	}
 	, getRandomColor: function() {
 		var max  = game.DROP_COLOR_SIZE;
 		var list = game.DROP_COLOR_ASSOSIATE;
@@ -98,6 +102,13 @@ Drop = enchant.Class.create(enchant.Sprite, {
 		this.y = this.line * game.DROP_SIZE;
 		parent.addChild(this);
 	}
+	, moveByRowLine: function() {
+		var tx = this.row * game.DROP_SIZE;
+		var ty = this.line * game.DROP_SIZE;
+		var frame  = game.EXCHANGE_FRAME;
+		var easing = game.EXCHANGE_EASING;
+		this.tl.moveTo(tx, ty, frame, easing);
+	}
 	, move: function(x, y, movetype, params) {
 		var frame  = 10;
 		var easing = enchant.Easing.CIRC_EASEOUT;
@@ -113,15 +124,6 @@ Drop = enchant.Class.create(enchant.Sprite, {
 	}
 });
 
-/*
-Dragger
-     current
-     selected
-     touchStart()
-     touchMove()
-     touchEnd()
-     exchangeFor(target)
-*/
 Dragger = enchant.Class.create(enchant.Entity, {
 	initialize: function() {
 		Entity.call(this);
@@ -130,20 +132,37 @@ Dragger = enchant.Class.create(enchant.Entity, {
 		this.current = null;
 		this.dragging = false;
 	}
-	, ontouchstart: function(e){
+	, ontouchstart: function(e) {
 		this.dragging = true;
 		var row  = Math.floor( (e.x - this._offsetX) / game.DROP_SIZE);
 		var line = Math.floor( (e.y - this._offsetY) / game.DROP_SIZE);
 		this.current = game.dropManager.getDropByRowLine(row, line);
 	}
-	, ontouchmove: function(e){
+	, ontouchmove: function(e) {
+		// drag
 		this.current.x = e.x - this._offsetX - (game.DROP_SIZE / 2);
 		this.current.y = e.y - this._offsetY - (game.DROP_SIZE / 2);
-		this.current.visible = true;
+		// exchange 
+		var row  = Math.floor( (e.x - this._offsetX) / game.DROP_SIZE);
+		var line = Math.floor( (e.y - this._offsetY) / game.DROP_SIZE);
+		var target = game.dropManager.getDropByRowLine(row, line);
+		if (typeof target !== 'undefined' && this.current != target) {
+			this.exchangeFor(target);
+		}
+	}
+    , exchangeFor: function(target) {
+		var r = this.current.row;
+		var l = this.current.line;
+		this.current.row = target.row;
+		this.current.line = target.line;
+		target.row = r;
+		target.line = l;
+		target.moveByRowLine();
 	}
 	, ontouchend: function(e){
 		if (this.dragging) {
 			this.dragging = false;
+			this.current.moveByRowLine();
 		}
 	}
 });

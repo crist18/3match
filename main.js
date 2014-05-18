@@ -163,10 +163,113 @@ Dragger = enchant.Class.create(enchant.Entity, {
 		if (this.dragging) {
 			this.dragging = false;
 			this.current.moveByRowLine();
+			// Puzzle
+			game.puzzle.put();
+			game.puzzle.judge();
 		}
 	}
 });
 
+/*
+Puzzle
+	state
+	combo_list
+	dropFields[x][y]
+	judge() / crossJudge()
+	verticalJudge()
+	horizontalJudge()
+	countCombo()
+	searchCombo(depth)
+*/
+Puzzle = enchant.Class.create({
+	initialize: function() {
+		this.state = 0;
+		this.combo_list = new Array();
+		this._dropFields = new Array(game.STAGE_LINES);
+		for (var i=0; i<this._dropFields.length; i++) {
+			this._dropFields[i] = new Array(game.STAGE_ROWS);
+		}
+	}
+    , dropFields: {
+		get: function() {
+			var f = new Array();	
+			for (var i=0; i<game.STAGE_LINES; i++) {
+				for (var j=0; j<game.STAGE_ROWS; j++) {
+					var drop = game.dropManager.getDropByRowLine(j, i);
+					this._dropFields[i][j] = drop.color;
+				}
+			}
+			return this._dropFields;
+		}
+	}
+    , judge: function() {
+		var f = this.dropFields;
+		for (var i=0; i<game.STAGE_LINES; i++) {
+			for (var j=0; j<game.STAGE_ROWS; j++) {
+				var v = this.verticalJudge(j, i);
+				var h = this.horizontalJudge(j, i);
+				if (v || h) {
+					var drop = game.dropManager.getDropByRowLine(j, i);
+					drop.matched = true;
+					drop.visible = false;
+				}
+			}
+		}
+	}
+    , verticalJudge: function(row, line) {
+		var f     = this.dropFields;
+		var color = f[line][row];
+		var arr   = new Array();
+		for (var i=0; i<game.STAGE_LINES; i++) {
+			arr[i] = f[i][row];
+		}
+		var cnt = this.countChain(arr, line, game.STAGE_LINES);
+		if (cnt >= game.MATCH_THRESHOLD) {
+			return true;
+		}
+		return false;
+	}
+    , horizontalJudge: function(row, line) {
+		var f     = this.dropFields;
+		var arr   = f[line];
+		var cnt = this.countChain(arr, row, game.STAGE_ROWS);
+		if (cnt >= game.MATCH_THRESHOLD) {
+			return true;
+		}
+		return false;
+	}
+    , countChain: function(arr, index, max) {
+		var cnt = 0;
+		var color = arr[index];
+		for (var i=index; i>=0; i--) {
+			if (arr[i] == color )	cnt++;
+			else					break;
+		}
+		for (var i=index+1; i<max; i++) {
+			if (arr[i] == color )	cnt++;
+			else					break;
+		}
+		//  console.log("arr", arr);
+		//  console.log("index", index);
+		//  console.log("cnt", cnt);
+		return cnt;
+	}
+    , put: function() {
+		var str = "";
+		var list = this.dropFields;
+		for (var i=0; i<list.length; i++) {
+			for (var j=0; j<list[i].length; j++) {
+				var text = list[i][j];
+				while (text.length < 8) {
+					text = text + " ";
+				}
+				str += text + ",";
+			}
+			str += "\n";
+		}
+		console.log(str);
+	}
+});
 
 MainScene = enchant.Class.create(enchant.Scene, {
 	initialize: function() {
@@ -185,6 +288,8 @@ MainScene = enchant.Class.create(enchant.Scene, {
 		// Dragger
 		game.dragger = new Dragger();
 		game.stage.addChild(game.dragger);
+		// Puzzle
+		game.puzzle = new Puzzle();
 
 		/*
 		this.sprite = new Sprite(50,50);

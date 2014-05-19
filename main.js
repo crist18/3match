@@ -29,17 +29,19 @@ define = function() {
 DropManager = enchant.Class.create({
 	initialize: function() {
 		this.drops = new Array();
-		var number_of_drops = game.STAGE_ROWS * game.STAGE_LINES;
-		for (var i=0; i<number_of_drops; i++) {
-			this.drops[i] = new Drop();
-		}
+	}
+	, setDrop: function(row, line) {
+		var drop = new Drop();
+		drop.addTo(game.stage, row, line);
+		this.drops.push(drop);
 	}
 	, setDrops: function() {
-		for (var i=0; i<this.drops.length; i++) {
+		var number_of_drops = game.STAGE_ROWS * game.STAGE_LINES;
+		for (var i=0; i<number_of_drops; i++) {
 			var drop = this.drops[i];
 			var row  = Math.floor(i % game.STAGE_ROWS);
 			var line = Math.floor(i / game.STAGE_ROWS);
-			drop.setDrop(game.stage, row, line);
+			this.setDrop(row, line);
 		}
 	}
 	, getDropByRowLine: function(row, line) {
@@ -48,6 +50,13 @@ DropManager = enchant.Class.create({
 			if (drop.row == row && drop.line == line) {
 				return drop;
 				break;
+			}
+		}
+	}
+	, unset: function(drop) {
+		for (key in this.drops) {
+			if (this.drops[key] == drop) {
+				this.drops.splice(key, 1);
 			}
 		}
 	}
@@ -65,10 +74,7 @@ Drop = enchant.Class.create(enchant.Sprite, {
 		this.line = 0;
 		this.matched = false;
 		this.comboChecked = false;
-	}
-	, onenterframe: function(e) {
-		this.image = game.assets["images/icon1.png"];
-		this.frame = this.getFrame();
+		this.toucnEnabled = false;
 	}
 	, getRandomColor: function() {
 		var max  = game.DROP_COLOR_SIZE;
@@ -80,32 +86,26 @@ Drop = enchant.Class.create(enchant.Sprite, {
 		}
 		return false;
 	}
-	, getColor: function() {
-		if (this.color) {
-			return this.color;
-		}
-		return false;
-	}
 	, getFrame: function() {
 		var list = game.DROP_COLOR_FRAME;
-		var color = this.getColor();
+		var color = this.color;
 		var frame = list[color];
 		if (frame) {
 			return frame;
 		}
 		return false;
 	}
-	, setDrop: function(parent, row, line, color) {
+	, addTo: function(parent, row, line, color) {
 		this.row = row;
 		this.line = line;
 		this.x = this.row * game.DROP_SIZE;
 		this.y = this.line * game.DROP_SIZE;
 		parent.addChild(this);
 	}
-	, moveByRowLine: function() {
+	, moveByRowLine: function(frame) {
+		if (typeof frame === 'undefined')	frame = game.EXCHANGE_FRAME;
 		var tx = this.row * game.DROP_SIZE;
 		var ty = this.line * game.DROP_SIZE;
-		var frame  = game.EXCHANGE_FRAME;
 		var easing = game.EXCHANGE_EASING;
 		this.tl.moveTo(tx, ty, frame, easing);
 	}
@@ -133,6 +133,7 @@ Dragger = enchant.Class.create(enchant.Entity, {
 		this.dragging = false;
 	}
 	, ontouchstart: function(e) {
+		console.log("touch!");
 		this.dragging = true;
 		var row  = Math.floor( (e.x - this._offsetX) / game.DROP_SIZE);
 		var line = Math.floor( (e.y - this._offsetY) / game.DROP_SIZE);
@@ -163,28 +164,17 @@ Dragger = enchant.Class.create(enchant.Entity, {
 		if (this.dragging) {
 			this.dragging = false;
 			this.current.moveByRowLine();
-			// Puzzle
-			game.puzzle.put();
-			game.puzzle.judge();
+			// 3 Match Puzzle Logic
+			game.puzzle.matchCheck();
 		}
 	}
 });
 
-/*
-Puzzle
-	state
-	combo_list
-	dropFields[x][y]
-	judge() / crossJudge()
-	verticalJudge()
-	horizontalJudge()
-	countCombo()
-	searchCombo(depth)
-*/
 Puzzle = enchant.Class.create({
 	initialize: function() {
 		this.state = 0;
-		this.combo_list = new Array();
+		this.combos = new Array();
+		this.last_combo = 0;
 		this._dropFields = new Array(game.STAGE_LINES);
 		for (var i=0; i<this._dropFields.length; i++) {
 			this._dropFields[i] = new Array(game.STAGE_ROWS);
@@ -196,11 +186,41 @@ Puzzle = enchant.Class.create({
 			for (var i=0; i<game.STAGE_LINES; i++) {
 				for (var j=0; j<game.STAGE_ROWS; j++) {
 					var drop = game.dropManager.getDropByRowLine(j, i);
-					this._dropFields[i][j] = drop.color;
+					if (drop) {
+						this._dropFields[i][j] = drop.color;
+					}
 				}
 			}
 			return this._dropFields;
 		}
+	}
+    , matchCheck: function() {
+		this.put();
+		this.judge();
+		this.countCombo();
+		if (this.combos.length != this.last_combo) {
+			this.last_combo = this.combos.length;
+			game.mainScene.tl.cue({
+			   1  : function(){ game.puzzle.erase() },
+			   30 : function(){ game.puzzle.fillup() },
+			   31 : function(){ game.puzzle.matchCheck() },
+			});
+		}
+	}
+    , put: function() {
+		var str = "";
+		var list = this.dropFields;
+		for (var i=0; i<list.length; i++) {
+			for (var j=0; j<list[i].length; j++) {
+				var text = list[i][j];
+				while (text.length < 8) {
+					text = text + " ";
+				}
+				str += text + ",";
+			}
+			str += "\n";
+		}
+		console.log(str);
 	}
     , judge: function() {
 		var f = this.dropFields;
@@ -210,11 +230,13 @@ Puzzle = enchant.Class.create({
 				var h = this.horizontalJudge(j, i);
 				if (v || h) {
 					var drop = game.dropManager.getDropByRowLine(j, i);
-					drop.matched = true;
-					drop.visible = false;
+					if (drop) {
+						drop.matched = true;
+					}
 				}
 			}
 		}
+		this.state = 1;
 	}
     , verticalJudge: function(row, line) {
 		var f     = this.dropFields;
@@ -249,25 +271,94 @@ Puzzle = enchant.Class.create({
 			if (arr[i] == color )	cnt++;
 			else					break;
 		}
-		//  console.log("arr", arr);
-		//  console.log("index", index);
-		//  console.log("cnt", cnt);
 		return cnt;
 	}
-    , put: function() {
-		var str = "";
-		var list = this.dropFields;
-		for (var i=0; i<list.length; i++) {
-			for (var j=0; j<list[i].length; j++) {
-				var text = list[i][j];
-				while (text.length < 8) {
-					text = text + " ";
+	
+	, countCombo: function() {
+		for (var i=0; i<game.STAGE_LINES; i++) {
+			for (var j=0; j<game.STAGE_ROWS; j++) {
+				var drop = game.dropManager.getDropByRowLine(j, i);
+				if (drop && drop.matched) {
+					var combo = this.searchCombo(drop);
+					if (combo) {
+						this.combos.push(combo);
+					}
 				}
-				str += text + ",";
 			}
-			str += "\n";
 		}
-		console.log(str);
+		// console.log(this.combos);
+	}
+	, searchCombo: function(drop, combo, depth) {
+		if (drop.comboChecked) {
+			return false;
+		} 
+
+		if (typeof combo === 'undefined' && typeof depth === 'undefined') {
+			combo = new Combo(drop.color);
+			depth = 0;
+		}
+		depth++;
+
+		if (drop.matched == true && drop.color == combo.color) {
+			combo.children.push(drop);
+			drop.comboChecked = true;
+			var row  = drop.row;
+			var line = drop.line;
+			var r = game.dropManager.getDropByRowLine(row+1, line);
+			var l = game.dropManager.getDropByRowLine(row-1, line);
+			var d = game.dropManager.getDropByRowLine(row, line+1);
+			var u = game.dropManager.getDropByRowLine(row, line-1);
+			if (r)	this.searchCombo(r, combo, depth);
+			if (l)	this.searchCombo(l, combo, depth);
+			if (d)	this.searchCombo(d, combo, depth);
+			if (u)	this.searchCombo(u, combo, depth);
+			if (depth == 1) {
+				return combo;
+			}
+		}
+		return false;
+	}
+	, erase: function() {
+		var combos = this.combos;
+		for (key in combos) {
+			var combo = combos[key];
+			combo.erase();
+			console.log("combo " + key);
+		}
+	}
+	, fillup: function() {
+		for (var i=0; i<game.STAGE_LINES; i++) {
+			for (var j=0; j<game.STAGE_ROWS; j++) {
+				var search = game.dropManager.getDropByRowLine(j, i);
+				if (typeof search === 'undefined') {
+					game.dropManager.setDrop(j, i);
+				}
+			}
+		}
+	}
+});
+
+Combo = enchant.Class.create({
+	initialize: function(color) {
+		this.color = color;
+		this.children = new Array();
+		this.erased = false;
+	}
+	, erase: function() {
+		if (this.erased) {
+			return false;
+		}
+		for (key in this.children) {
+			var drop = this.children[key];
+			drop.tl.clear();
+			drop.moveByRowLine(1);
+			drop.tl.cue({
+			   2 : function(){ this.tl.fadeOut(20) },
+			   10: function(){ this.tl.removeFromScene() },
+			   11: function(){ game.dropManager.unset(this) },
+			});
+			this.erased = true;
+		}
 	}
 });
 
@@ -287,24 +378,11 @@ MainScene = enchant.Class.create(enchant.Scene, {
 		game.dropManager.setDrops();
 		// Dragger
 		game.dragger = new Dragger();
-		game.stage.addChild(game.dragger);
+		game.dragger.x = game.stage.x;
+		game.dragger.y = game.stage.y;
+		this.addChild(game.dragger);
 		// Puzzle
 		game.puzzle = new Puzzle();
-
-		/*
-		this.sprite = new Sprite(50,50);
-		this.sprite.image = game.assets["images/icon1.png"];
-		this.addChild(this.sprite);
-		this.sprite.addEventListener('touchstart', function() {
-			console.log("test");
-		});
-		*/
-
-		/*
-		this.addEventListener('touchstart', function() {
-			console.log("test");
-		});
-		*/
 	}
 });
 

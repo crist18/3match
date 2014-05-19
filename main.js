@@ -15,8 +15,6 @@ define = function() {
 	game.DROP_COLOR_SIZE = 6;
 	game.DROP_COLOR_ASSOSIATE = {0:"blue", 1:"red", 2:"yellow", 3:"gray", 4:"green", 5:"orange"};
 	game.DROP_COLOR_FRAME = {"blue":0, "red":1, "yellow":2, "gray":3, "green":4, "orange":5};
-	game.SLIDE_FRAME = 30;
-	game.SLIDE_EASING = enchant.Easing.CIRC_EASEOUT;
 	game.EXCHANGE_FRAME = 10;
 	game.EXCHANGE_EASING = enchant.Easing.CIRC_EASEOUT;
 	game.GAME_TIME = 120;
@@ -148,6 +146,8 @@ Dragger = enchant.Class.create(enchant.Entity, {
 		target.row = r;
 		target.line = l;
 		target.moveByRowLine();
+		// 3 Match Puzzle Logic
+		game.puzzle.matchCheck();
 	}
 	, ontouchend: function(e){
 		if (this.dragging) {
@@ -155,8 +155,6 @@ Dragger = enchant.Class.create(enchant.Entity, {
 			if (this.current) {
 				this.current.moveByRowLine();
 			}
-			// 3 Match Puzzle Logic
-			game.puzzle.matchCheck();
 		}
 	}
 });

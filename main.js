@@ -30,19 +30,19 @@ DropManager = enchant.Class.create({
 	initialize: function() {
 		this.drops = new Array();
 	}
-	, setDrop: function(row, line) {
-		var drop = new Drop();
-		drop.addTo(game.stage, row, line);
-		this.drops.push(drop);
-	}
 	, setDrops: function() {
 		var number_of_drops = game.STAGE_ROWS * game.STAGE_LINES;
 		for (var i=0; i<number_of_drops; i++) {
 			var drop = this.drops[i];
 			var row  = Math.floor(i % game.STAGE_ROWS);
 			var line = Math.floor(i / game.STAGE_ROWS);
-			this.setDrop(row, line);
+			this.addDrop(row, line);
 		}
+	}
+	, addDrop: function(row, line) {
+		var drop = new Drop();
+		drop.addTo(game.stage, row, line);
+		this.drops.push(drop);
 	}
 	, getDropByRowLine: function(row, line) {
 		for (key in this.drops) {
@@ -57,6 +57,7 @@ DropManager = enchant.Class.create({
 		for (key in this.drops) {
 			if (this.drops[key] == drop) {
 				this.drops.splice(key, 1);
+				break;
 			}
 		}
 	}
@@ -102,25 +103,12 @@ Drop = enchant.Class.create(enchant.Sprite, {
 		this.y = this.line * game.DROP_SIZE;
 		parent.addChild(this);
 	}
-	, moveByRowLine: function(frame) {
+	, moveByRowLine: function(frame, easing) {
 		if (typeof frame === 'undefined')	frame = game.EXCHANGE_FRAME;
+		if (typeof easing === 'undefined')	easing = game.EXCHANGE_EASING;
 		var tx = this.row * game.DROP_SIZE;
 		var ty = this.line * game.DROP_SIZE;
-		var easing = game.EXCHANGE_EASING;
 		this.tl.moveTo(tx, ty, frame, easing);
-	}
-	, move: function(x, y, movetype, params) {
-		var frame  = 10;
-		var easing = enchant.Easing.CIRC_EASEOUT;
-		if (movetype=="slide")	{
-			frame  = game.SLIDE_FRAME;
-			easing = game.SLIDE_EASING;
-		}
-		else if (movetype=="exchenge")	{
-			frame  = game.EXCHANGE_FRAME;
-			easing = game.EXCHANGE_EASING;
-		}
-		this.tl.moveTo(x, y, frame, easing);
 	}
 });
 
@@ -133,22 +121,23 @@ Dragger = enchant.Class.create(enchant.Entity, {
 		this.dragging = false;
 	}
 	, ontouchstart: function(e) {
-		console.log("touch!");
 		this.dragging = true;
 		var row  = Math.floor( (e.x - this._offsetX) / game.DROP_SIZE);
 		var line = Math.floor( (e.y - this._offsetY) / game.DROP_SIZE);
 		this.current = game.dropManager.getDropByRowLine(row, line);
 	}
 	, ontouchmove: function(e) {
-		// drag
-		this.current.x = e.x - this._offsetX - (game.DROP_SIZE / 2);
-		this.current.y = e.y - this._offsetY - (game.DROP_SIZE / 2);
-		// exchange 
-		var row  = Math.floor( (e.x - this._offsetX) / game.DROP_SIZE);
-		var line = Math.floor( (e.y - this._offsetY) / game.DROP_SIZE);
-		var target = game.dropManager.getDropByRowLine(row, line);
-		if (typeof target !== 'undefined' && this.current != target) {
-			this.exchangeFor(target);
+		if (this.current) {
+			// drag
+			this.current.x = e.x - this._offsetX - (game.DROP_SIZE / 2);
+			this.current.y = e.y - this._offsetY - (game.DROP_SIZE / 2);
+			// exchange 
+			var row  = Math.floor( (e.x - this._offsetX) / game.DROP_SIZE);
+			var line = Math.floor( (e.y - this._offsetY) / game.DROP_SIZE);
+			var target = game.dropManager.getDropByRowLine(row, line);
+			if (typeof target !== 'undefined' && this.current != target) {
+				this.exchangeFor(target);
+			}
 		}
 	}
     , exchangeFor: function(target) {
@@ -163,7 +152,9 @@ Dragger = enchant.Class.create(enchant.Entity, {
 	, ontouchend: function(e){
 		if (this.dragging) {
 			this.dragging = false;
-			this.current.moveByRowLine();
+			if (this.current) {
+				this.current.moveByRowLine();
+			}
 			// 3 Match Puzzle Logic
 			game.puzzle.matchCheck();
 		}
@@ -172,9 +163,9 @@ Dragger = enchant.Class.create(enchant.Entity, {
 
 Puzzle = enchant.Class.create({
 	initialize: function() {
-		this.state = 0;
 		this.combos = new Array();
 		this.last_combo = 0;
+		this.last_erased = 0;
 		this._dropFields = new Array(game.STAGE_LINES);
 		for (var i=0; i<this._dropFields.length; i++) {
 			this._dropFields[i] = new Array(game.STAGE_ROWS);
@@ -194,33 +185,20 @@ Puzzle = enchant.Class.create({
 			return this._dropFields;
 		}
 	}
+	/* 3match puzzle chain logic */
     , matchCheck: function() {
-		this.put();
+		this.put2dMatrix( this.dropFields );
 		this.judge();
 		this.countCombo();
 		if (this.combos.length != this.last_combo) {
 			this.last_combo = this.combos.length;
+			this.last_erased = game.mainScene.age;
 			game.mainScene.tl.cue({
 			   1  : function(){ game.puzzle.erase() },
 			   30 : function(){ game.puzzle.fillup() },
 			   31 : function(){ game.puzzle.matchCheck() },
 			});
 		}
-	}
-    , put: function() {
-		var str = "";
-		var list = this.dropFields;
-		for (var i=0; i<list.length; i++) {
-			for (var j=0; j<list[i].length; j++) {
-				var text = list[i][j];
-				while (text.length < 8) {
-					text = text + " ";
-				}
-				str += text + ",";
-			}
-			str += "\n";
-		}
-		console.log(str);
 	}
     , judge: function() {
 		var f = this.dropFields;
@@ -236,7 +214,6 @@ Puzzle = enchant.Class.create({
 				}
 			}
 		}
-		this.state = 1;
 	}
     , verticalJudge: function(row, line) {
 		var f     = this.dropFields;
@@ -273,7 +250,7 @@ Puzzle = enchant.Class.create({
 		}
 		return cnt;
 	}
-	
+	/* 3match puzzle combo logic */
 	, countCombo: function() {
 		for (var i=0; i<game.STAGE_LINES; i++) {
 			for (var j=0; j<game.STAGE_ROWS; j++) {
@@ -286,7 +263,6 @@ Puzzle = enchant.Class.create({
 				}
 			}
 		}
-		// console.log(this.combos);
 	}
 	, searchCombo: function(drop, combo, depth) {
 		if (drop.comboChecked) {
@@ -318,12 +294,12 @@ Puzzle = enchant.Class.create({
 		}
 		return false;
 	}
+	/* 3match puzzle UI */
 	, erase: function() {
-		var combos = this.combos;
-		for (key in combos) {
-			var combo = combos[key];
+		for (var i=0; i<this.combos.length; i++) {
+			var combo = this.combos[i];
 			combo.erase();
-			console.log("combo " + key);
+			console.log("combo " + i);
 		}
 	}
 	, fillup: function() {
@@ -331,10 +307,25 @@ Puzzle = enchant.Class.create({
 			for (var j=0; j<game.STAGE_ROWS; j++) {
 				var search = game.dropManager.getDropByRowLine(j, i);
 				if (typeof search === 'undefined') {
-					game.dropManager.setDrop(j, i);
+					game.dropManager.addDrop(j, i);
 				}
 			}
 		}
+	}
+	/* console.log for 2d Array */
+	, put2dMatrix : function(list) {
+		var str = "";
+		for (var i=0; i<list.length; i++) {
+			for (var j=0; j<list[i].length; j++) {
+				var text = list[i][j];
+				while (text.length < 8) {
+					text = text + " ";
+				}
+				str += text + ",";
+			}
+			str += "\n";
+		}
+		console.log(str);
 	}
 });
 
@@ -348,8 +339,8 @@ Combo = enchant.Class.create({
 		if (this.erased) {
 			return false;
 		}
-		for (key in this.children) {
-			var drop = this.children[key];
+		for (var i=0; i<this.children.length; i++) {
+			var drop = this.children[i];
 			drop.tl.clear();
 			drop.moveByRowLine(1);
 			drop.tl.cue({
@@ -373,16 +364,21 @@ MainScene = enchant.Class.create(enchant.Scene, {
 		game.stage.x = 10;
 		game.stage.y = 60;
 		this.addChild(game.stage);
-		// DropManager
-		game.dropManager = new DropManager();
-		game.dropManager.setDrops();
-		// Dragger
-		game.dragger = new Dragger();
-		game.dragger.x = game.stage.x;
-		game.dragger.y = game.stage.y;
-		this.addChild(game.dragger);
-		// Puzzle
-		game.puzzle = new Puzzle();
+
+		this.tl.cue({
+			1: function() {
+				// DropManager
+				game.dropManager = new DropManager();
+				game.dropManager.setDrops();
+				// Dragger
+				game.dragger = new Dragger();
+				game.dragger.x = game.stage.x;
+				game.dragger.y = game.stage.y;
+				this.addChild(game.dragger);
+				// Puzzle
+				game.puzzle = new Puzzle();
+			}
+		});
 	}
 });
 
@@ -404,4 +400,3 @@ window.onload = function() {
 		game.start()
 	}
 };
-

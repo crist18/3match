@@ -6,7 +6,7 @@ enchant();
 
 define = function() {
 	game.DEBUG = false;
-	game.VERSION = 140514;
+	game.VERSION = 140519;
 	game.STAGE_ROWS	= 6;
 	game.STAGE_LINES = 5;
 	game.STAGE_H = 250;
@@ -17,11 +17,11 @@ define = function() {
 	game.DROP_COLOR_FRAME = {"blue":0, "red":1, "yellow":2, "gray":3, "green":4, "orange":5};
 	game.EXCHANGE_FRAME = 10;
 	game.EXCHANGE_EASING = enchant.Easing.CIRC_EASEOUT;
-	game.GAME_TIME = 120;
-	game.MANIPULATION_TIME = 5;
 	game.MATCH_THRESHOLD = 3;
-	game.BONUS_ADD_PER_ONE = 0.25;
-	game.BONUS_COMBO = 0.25
+	// game.GAME_TIME = 120;
+	// game.MANIPULATION_TIME = 5;
+	// game.BONUS_ADD_PER_ONE = 0.25;
+	// game.BONUS_COMBO = 0.25
 }
 
 DropManager = enchant.Class.create({
